@@ -1,0 +1,94 @@
+-- DDI Queries File (Updated April 2025)
+
+-- 1. Most active customers in last 90 days
+SELECT c.CustomerID,
+       CONCAT(c.FirstName, ' ', c.LastName) AS CustomerName,
+       COUNT(o.OrderID) AS TotalOrders
+FROM Customer c
+JOIN `Order` o ON c.CustomerID = o.CustomerID
+WHERE o.OrderDate >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+GROUP BY c.CustomerID
+ORDER BY TotalOrders DESC;
+
+-- 2. Top 5 categories by revenue
+SELECT cat.CategoryName,
+       SUM(oi.Quantity * oi.ItemPrice) AS TotalRevenue
+FROM OrderItem oi
+JOIN Product p ON oi.ProductID = p.ProductID
+JOIN ProductCategory pc ON p.ProductID = pc.ProductID
+JOIN Category cat ON pc.CategoryID = cat.CategoryID
+GROUP BY cat.CategoryName
+ORDER BY TotalRevenue DESC
+LIMIT 5;
+
+-- 3. Average basket size and value per order
+SELECT AVG(item_count) AS AvgItemsPerOrder,
+       AVG(total_price) AS AvgOrderValue
+FROM (
+    SELECT o.OrderID,
+           SUM(oi.Quantity) AS item_count,
+           SUM(oi.Quantity * oi.ItemPrice) AS total_price
+    FROM `Order` o
+    JOIN OrderItem oi ON o.OrderID = oi.OrderID
+    GROUP BY o.OrderID
+) AS order_summary;
+
+-- 4. Products with low stock (<10)
+SELECT p.ProductID,
+       p.ProductName,
+       p.StockQty,
+       s.SellerName,
+       s.ContactEmail
+FROM Product p
+JOIN Seller s ON p.SellerID = s.SellerID
+WHERE p.StockQty < 10
+ORDER BY p.StockQty;
+
+-- 5. Refund rate per payment method
+SELECT pm.MethodName,
+       COUNT(*) AS TotalTransactions,
+       SUM(CASE WHEN p.Status = 'Refunded' THEN 1 ELSE 0 END) AS RefundedCount,
+       ROUND(100 * SUM(CASE WHEN p.Status = 'Refunded' THEN 1 ELSE 0 END) / COUNT(*), 2) AS RefundRate
+FROM Payment p
+JOIN PaymentMethod pm ON p.PaymentMethodID = pm.PaymentMethodID
+GROUP BY pm.MethodName;
+
+-- 6. Top 5 best-selling products
+SELECT p.ProductID,
+       p.ProductName,
+       SUM(oi.Quantity) AS UnitsSold
+FROM OrderItem oi
+JOIN Product p ON oi.ProductID = p.ProductID
+GROUP BY p.ProductID, p.ProductName
+ORDER BY UnitsSold DESC
+LIMIT 5;
+
+-- 7. Top 5 customers by total spend
+SELECT c.CustomerID,
+       CONCAT(c.FirstName, ' ', c.LastName) AS CustomerName,
+       SUM(oi.Quantity * oi.ItemPrice) AS TotalSpent
+FROM Customer c
+JOIN `Order` o ON c.CustomerID = o.CustomerID
+JOIN OrderItem oi ON o.OrderID = oi.OrderID
+GROUP BY c.CustomerID
+ORDER BY TotalSpent DESC
+LIMIT 5;
+
+-- 8. Average order processing time
+SELECT ROUND(AVG(DATEDIFF(p.PaymentDate, o.OrderDate)), 2) AS AvgProcessingTimeDays
+FROM `Order` o
+JOIN Payment p ON o.OrderID = p.OrderID
+WHERE p.Status = 'Paid';
+
+-- 9. Pickup vs Delivery order counts by month
+SELECT MONTH(o.OrderDate) AS OrderMonth,
+       o.DeliveryType,
+       COUNT(*) AS OrderCount
+FROM `Order` o
+GROUP BY OrderMonth, o.DeliveryType
+ORDER BY OrderMonth;
+
+-- 10. Total value of refunded payments
+SELECT SUM(p.Amount) AS TotalRefundedAmount
+FROM Payment p
+WHERE p.Status = 'Refunded';
